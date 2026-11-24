@@ -1,11 +1,11 @@
 package com.lab.service;
 
-import com.lab.model.DelayStatus;
+import com.lab.enums.DelayStatus;
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
 import com.lab.model.HistoryEntry;
 import com.lab.model.Machine;
-import com.lab.model.Priority;
 import com.lab.model.Sample;
-import com.lab.model.Status;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

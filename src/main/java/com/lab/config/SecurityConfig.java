@@ -1,6 +1,7 @@
 package com.lab.config;
 
-import com.lab.dao.UserDAO;
+import com.lab.model.User;
+import com.lab.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,7 +10,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -20,8 +20,9 @@ import java.util.Optional;
 
 /**
  * Spring Security Configuration with Role-Based Access Control:
- * - ADMIN: Full access, including creating/updating machines, priorities, and test types.
- * - STAFF: Daily operations (registering samples, viewing queue/machines, completing/holding samples).
+ * - Public: Static assets, /api/auth/login, /api/auth/me
+ * - ADMIN: Full access (create/update/delete machines, priorities, test types, and manage users)
+ * - STAFF: Daily operations (registering samples, viewing queue/machines, completing/holding samples)
  */
 @Configuration
 @EnableWebSecurity
@@ -33,11 +34,10 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-
                 .requestMatchers("/", "/index.html", "/*.html", "/*.css", "/*.js", "/css/**", "/js/**", "/favicon.ico", "/static/**").permitAll()
-
                 .requestMatchers("/api/auth/**").permitAll()
 
+                // ADMIN-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/machines").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/machines/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/machines/**").hasRole("ADMIN")
@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/test-types/**").hasRole("ADMIN")
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
 
+                // STAFF & ADMIN shared access
                 .requestMatchers(HttpMethod.GET, "/api/priorities/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/api/test-types/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers("/api/**").hasAnyRole("ADMIN", "STAFF")
@@ -66,29 +67,27 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsService userDetailsService(UserDAO userDAO, PasswordEncoder encoder) {
-
+    public UserDetailsService userDetailsService(UserRepository userRepository, PasswordEncoder encoder) {
         try {
-            userDAO.ensureDefaultAccounts(encoder);
+            userRepository.ensureDefaultAccounts(encoder);
         } catch (Exception e) {
             System.err.println("[SECURITY] Could not verify default accounts on startup: " + e.getMessage());
         }
 
         return username -> {
-
             try {
-                Optional<com.lab.model.User> dbUser = userDAO.findByUsername(username);
+                Optional<User> dbUser = userRepository.findByUsername(username);
                 if (dbUser.isPresent()) {
-                    com.lab.model.User u = dbUser.get();
+                    User u = dbUser.get();
                     String role = (u.getRole() != null) ? u.getRole().replace("ROLE_", "") : "STAFF";
                     if ("ADMIN".equalsIgnoreCase(role)) {
-                        return User.builder()
+                        return org.springframework.security.core.userdetails.User.builder()
                                 .username(u.getUsername())
                                 .password(u.getPasswordHash())
                                 .roles("ADMIN", "STAFF")
                                 .build();
                     } else {
-                        return User.builder()
+                        return org.springframework.security.core.userdetails.User.builder()
                                 .username(u.getUsername())
                                 .password(u.getPasswordHash())
                                 .roles("STAFF")
@@ -99,16 +98,21 @@ public class SecurityConfig {
                 System.err.println("Notice: Could not load user from DB, falling back to in-memory: " + e.getMessage());
             }
 
+            String envAdminPass = System.getenv("ADMIN_PASSWORD");
+            String envStaffPass = System.getenv("STAFF_PASSWORD");
+            String adminPlain = (envAdminPass != null && !envAdminPass.isBlank()) ? envAdminPass : "admin123";
+            String staffPlain = (envStaffPass != null && !envStaffPass.isBlank()) ? envStaffPass : "staff123";
+
             if ("admin".equalsIgnoreCase(username)) {
-                return User.builder()
+                return org.springframework.security.core.userdetails.User.builder()
                         .username("admin")
-                        .password(encoder.encode("admin123"))
+                        .password(encoder.encode(adminPlain))
                         .roles("ADMIN", "STAFF")
                         .build();
             } else if ("staff".equalsIgnoreCase(username) || "staff1".equalsIgnoreCase(username)) {
-                return User.builder()
+                return org.springframework.security.core.userdetails.User.builder()
                         .username(username)
-                        .password(encoder.encode("staff123"))
+                        .password(encoder.encode(staffPlain))
                         .roles("STAFF")
                         .build();
             }

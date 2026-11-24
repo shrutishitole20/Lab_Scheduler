@@ -1,7 +1,7 @@
 package com.lab;
 
 import com.lab.model.Machine;
-import com.lab.model.Priority;
+import com.lab.enums.Priority;
 import com.lab.service.SchedulerService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;

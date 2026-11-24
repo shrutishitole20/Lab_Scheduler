@@ -126,27 +126,34 @@ mvn test -Dtest=SchedulerServiceTest
 ```text
 lab-scheduler/
 ├── database/
-│   └── schema.sql                  # MySQL database DDL schema and seed data
+│   └── schema.sql                          # MySQL database DDL schema and seed data
 ├── docs/
-│   ├── EXPLANATION.md              # Plain-English technical explanations
-│   ├── TEST_CASES.md               # Detailed table of the 7 test cases
-│   └── DEMO_SCRIPT.md              # 5-minute step-by-step demonstration guide
+│   ├── EXPLANATION.md                      # Plain-English technical explanations
+│   ├── TEST_CASES.md                       # Detailed table of the test cases
+│   └── DEMO_SCRIPT.md                      # 5-minute step-by-step demonstration guide
 ├── src/
 │   ├── main/
 │   │   ├── java/com/lab/
-│   │   │   ├── LabSchedulerApplication.java # Spring Boot entry point
-│   │   │   ├── Main.java                    # Standalone terminal demo runner
-│   │   │   ├── config/                      # Security & Spring configurations
-│   │   │   ├── dao/                         # JDBC PreparedStatement DAOs & DBConnection
-│   │   │   ├── model/                       # Domain entities and enums (Sample, Machine, etc.)
-│   │   │   ├── service/                     # SchedulerService & SampleComparator
-│   │   │   └── web/                         # REST Controllers, GlobalExceptionHandler & DTOs
+│   │   │   ├── LabSchedulerApplication.java # Spring Boot application entry point
+│   │   │   ├── Main.java                    # Standalone terminal simulation runner
+│   │   │   ├── config/                      # Spring Security & App configuration (SecurityConfig)
+│   │   │   ├── controller/                  # REST Controllers (Admin, Auth, Machine, Queue, Report, Sample)
+│   │   │   ├── dto/                         # Request & Response Data Transfer Objects
+│   │   │   ├── enums/                       # Domain enumerations (Priority, Status, DelayStatus)
+│   │   │   ├── exception/                   # Custom business exceptions & GlobalExceptionHandler
+│   │   │   ├── model/                       # Domain entities (Sample, Machine, User, HistoryEntry, etc.)
+│   │   │   ├── repository/                  # Database repository layer with JDBC PreparedStatements
+│   │   │   ├── scheduler/                   # Core scheduling engine (SchedulerEngine & SampleComparator)
+│   │   │   ├── service/                     # Business services (SchedulerService, AdminService, ReportService)
+│   │   │   ├── util/                        # DBConnection (with env vars) & DateTime utilities
+│   │   │   └── dao/                         # Backward-compatible repository adapters
 │   │   └── resources/
-│   │       ├── application.properties       # Server & Jackson settings
+│   │       ├── application.properties       # Server, DataSource & Jackson settings
 │   │       ├── config.properties.example    # Configuration template
 │   │       ├── config.properties            # Active local configuration (in .gitignore)
-│   │       └── static/                      # Web UI (index.html, app.js, style.css)
-│   └── test/java/com/lab/                   # JUnit 5 test suites
+│   │       └── static/                      # Single-page web UI (index.html, app.js, style.css)
+│   └── test/java/com/lab/                   # Comprehensive JUnit 5 test suites (58 unit & integration tests)
+├── Lab_Scheduler_APIs.postman_collection.json # Complete Postman API testing collection
 ├── pom.xml                                  # Maven project configuration
 └── .gitignore                               # Git ignore rules
 ```

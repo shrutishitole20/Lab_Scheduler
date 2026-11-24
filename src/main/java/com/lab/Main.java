@@ -1,9 +1,10 @@
 package com.lab;
 
 import com.lab.dao.DBConnection;
-import com.lab.model.DelayStatus;
+import com.lab.enums.DelayStatus;
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
 import com.lab.model.Machine;
-import com.lab.model.Priority;
 import com.lab.model.Sample;
 import com.lab.service.SchedulerService;
 
@@ -69,7 +70,7 @@ public class Main {
         }
 
         Sample firstProcessing = scheduler.getAllSamples().values().stream()
-                .filter(s -> s.getStatus() == com.lab.model.Status.PROCESSING)
+                .filter(s -> s.getStatus() == Status.PROCESSING)
                 .findFirst()
                 .orElse(null);
 

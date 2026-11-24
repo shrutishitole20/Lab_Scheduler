@@ -1,10 +1,10 @@
 package com.lab;
 
-import com.lab.model.DelayStatus;
+import com.lab.enums.DelayStatus;
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
 import com.lab.model.Machine;
-import com.lab.model.Priority;
 import com.lab.model.Sample;
-import com.lab.model.Status;
 import com.lab.service.SampleComparator;
 import com.lab.service.SchedulerService;
 import org.junit.jupiter.api.DisplayName;

@@ -1,47 +1,46 @@
 package com.lab.service;
 
-import com.lab.dao.AssignmentDAO;
-import com.lab.dao.DBConnection;
-import com.lab.dao.DowntimeDAO;
-import com.lab.dao.HistoryDAO;
-import com.lab.dao.MachineDAO;
-import com.lab.dao.SampleDAO;
-import com.lab.model.DelayStatus;
+import com.lab.enums.DelayStatus;
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
+import com.lab.exception.InvalidStateTransitionException;
+import com.lab.exception.ResourceNotFoundException;
 import com.lab.model.HistoryEntry;
 import com.lab.model.Machine;
-import com.lab.model.Priority;
 import com.lab.model.Sample;
-import com.lab.model.Status;
+import com.lab.repository.AssignmentRepository;
+import com.lab.repository.DowntimeRepository;
+import com.lab.repository.HistoryRepository;
+import com.lab.repository.MachineRepository;
+import com.lab.repository.SampleRepository;
+import com.lab.scheduler.SchedulerEngine;
+import com.lab.util.DBConnection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.PriorityQueue;
 
 @Service
 public class SchedulerService {
 
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
-    private final PriorityQueue<Sample> queue;
+    private final SchedulerEngine schedulerEngine;
     private final Map<String, Machine> machines;
     private final Map<String, Sample> allSamples;
     private final List<HistoryEntry> history;
     private int idCounter;
 
-    private final SampleDAO sampleDAO;
-    private final MachineDAO machineDAO;
-    private final HistoryDAO historyDAO;
-    private final DowntimeDAO downtimeDAO;
-    private final AssignmentDAO assignmentDAO;
+    private final SampleRepository sampleRepository;
+    private final MachineRepository machineRepository;
+    private final HistoryRepository historyRepository;
+    private final DowntimeRepository downtimeRepository;
+    private final AssignmentRepository assignmentRepository;
     private final boolean persistenceEnabled;
 
     public SchedulerService() {
@@ -49,34 +48,48 @@ public class SchedulerService {
     }
 
     @Autowired
-    public SchedulerService(SampleDAO sampleDAO, MachineDAO machineDAO, HistoryDAO historyDAO, DowntimeDAO downtimeDAO, AssignmentDAO assignmentDAO) {
-        this(sampleDAO, machineDAO, historyDAO, downtimeDAO, assignmentDAO, DBConnection.testConnection());
+    public SchedulerService(SampleRepository sampleRepository,
+                            MachineRepository machineRepository,
+                            HistoryRepository historyRepository,
+                            DowntimeRepository downtimeRepository,
+                            AssignmentRepository assignmentRepository) {
+        this(sampleRepository, machineRepository, historyRepository, downtimeRepository, assignmentRepository, DBConnection.testConnection());
     }
 
-    public SchedulerService(SampleDAO sampleDAO, MachineDAO machineDAO, HistoryDAO historyDAO) {
-        this(sampleDAO, machineDAO, historyDAO, new DowntimeDAO(), new AssignmentDAO(), DBConnection.testConnection());
+    public SchedulerService(SampleRepository sampleRepository,
+                            MachineRepository machineRepository,
+                            HistoryRepository historyRepository) {
+        this(sampleRepository, machineRepository, historyRepository, new DowntimeRepository(), new AssignmentRepository(), DBConnection.testConnection());
     }
 
     public SchedulerService(boolean enablePersistence) {
-        this(new SampleDAO(), new MachineDAO(), new HistoryDAO(), new DowntimeDAO(), new AssignmentDAO(), enablePersistence && DBConnection.testConnection());
+        this(new SampleRepository(), new MachineRepository(), new HistoryRepository(), new DowntimeRepository(), new AssignmentRepository(), enablePersistence && DBConnection.testConnection());
     }
 
-    public SchedulerService(SampleDAO sampleDAO, MachineDAO machineDAO, HistoryDAO historyDAO, boolean enablePersistence) {
-        this(sampleDAO, machineDAO, historyDAO, new DowntimeDAO(), new AssignmentDAO(), enablePersistence);
+    public SchedulerService(SampleRepository sampleRepository,
+                            MachineRepository machineRepository,
+                            HistoryRepository historyRepository,
+                            boolean enablePersistence) {
+        this(sampleRepository, machineRepository, historyRepository, new DowntimeRepository(), new AssignmentRepository(), enablePersistence);
     }
 
-    public SchedulerService(SampleDAO sampleDAO, MachineDAO machineDAO, HistoryDAO historyDAO, DowntimeDAO downtimeDAO, AssignmentDAO assignmentDAO, boolean enablePersistence) {
-        this.queue = new PriorityQueue<>(new SampleComparator());
+    public SchedulerService(SampleRepository sampleRepository,
+                            MachineRepository machineRepository,
+                            HistoryRepository historyRepository,
+                            DowntimeRepository downtimeRepository,
+                            AssignmentRepository assignmentRepository,
+                            boolean enablePersistence) {
+        this.schedulerEngine = new SchedulerEngine();
         this.machines = new LinkedHashMap<>();
         this.allSamples = new LinkedHashMap<>();
         this.history = new ArrayList<>();
         this.idCounter = 1;
 
-        this.sampleDAO = (sampleDAO != null) ? sampleDAO : new SampleDAO();
-        this.machineDAO = (machineDAO != null) ? machineDAO : new MachineDAO();
-        this.historyDAO = (historyDAO != null) ? historyDAO : new HistoryDAO();
-        this.downtimeDAO = (downtimeDAO != null) ? downtimeDAO : new DowntimeDAO();
-        this.assignmentDAO = (assignmentDAO != null) ? assignmentDAO : new AssignmentDAO();
+        this.sampleRepository = (sampleRepository != null) ? sampleRepository : new SampleRepository();
+        this.machineRepository = (machineRepository != null) ? machineRepository : new MachineRepository();
+        this.historyRepository = (historyRepository != null) ? historyRepository : new HistoryRepository();
+        this.downtimeRepository = (downtimeRepository != null) ? downtimeRepository : new DowntimeRepository();
+        this.assignmentRepository = (assignmentRepository != null) ? assignmentRepository : new AssignmentRepository();
         this.persistenceEnabled = enablePersistence;
 
         if (this.persistenceEnabled) {
@@ -86,18 +99,17 @@ public class SchedulerService {
 
     public synchronized final void loadFromDatabase() {
         try {
-
-            List<Machine> dbMachines = machineDAO.findAll();
+            List<Machine> dbMachines = machineRepository.findAll();
             for (Machine m : dbMachines) {
                 m.setCurrentLoad(0);
                 machines.put(m.getId(), m);
             }
 
-            int maxId = sampleDAO.getMaxSampleIdNumber();
+            int maxId = sampleRepository.getMaxSampleIdNumber();
 
-            List<Sample> queuedSamples = sampleDAO.findByStatus(Status.QUEUED);
-            List<Sample> processingSamples = sampleDAO.findByStatus(Status.PROCESSING);
-            List<Sample> onHoldSamples = sampleDAO.findByStatus(Status.ON_HOLD);
+            List<Sample> queuedSamples = sampleRepository.findByStatus(Status.QUEUED);
+            List<Sample> processingSamples = sampleRepository.findByStatus(Status.PROCESSING);
+            List<Sample> onHoldSamples = sampleRepository.findByStatus(Status.ON_HOLD);
 
             for (Sample s : processingSamples) {
                 allSamples.put(s.getId(), s);
@@ -118,12 +130,11 @@ public class SchedulerService {
 
             for (Sample s : queuedSamples) {
                 allSamples.put(s.getId(), s);
-                queue.add(s);
+                schedulerEngine.enqueue(s);
                 maxId = Math.max(maxId, extractIdNumber(s.getId()));
             }
 
             this.idCounter = maxId + 1;
-
             assignSamples();
 
         } catch (Exception e) {
@@ -148,8 +159,9 @@ public class SchedulerService {
         machines.put(m.getId(), m);
 
         if (persistenceEnabled) {
-            machineDAO.save(m);
+            machineRepository.save(m);
         }
+        assignSamples();
     }
 
     public synchronized void updateMachine(Machine m) {
@@ -159,7 +171,7 @@ public class SchedulerService {
         machines.put(m.getId(), m);
 
         if (persistenceEnabled) {
-            machineDAO.update(m);
+            machineRepository.update(m);
         }
         assignSamples();
     }
@@ -207,7 +219,7 @@ public class SchedulerService {
         history.add(recEntry);
 
         sample.setStatus(Status.QUEUED);
-        int queuePosition = queue.size() + 1;
+        int queuePosition = schedulerEngine.queueSize() + 1;
         HistoryEntry qEntry = new HistoryEntry(
                 id,
                 receivedTime,
@@ -217,12 +229,12 @@ public class SchedulerService {
         history.add(qEntry);
 
         allSamples.put(id, sample);
-        queue.add(sample);
+        schedulerEngine.enqueue(sample);
 
         if (persistenceEnabled) {
-            sampleDAO.save(sample);
-            historyDAO.save(recEntry);
-            historyDAO.save(qEntry);
+            sampleRepository.save(sample);
+            historyRepository.save(recEntry);
+            historyRepository.save(qEntry);
         }
 
         assignSamples();
@@ -230,59 +242,37 @@ public class SchedulerService {
     }
 
     public synchronized void assignSamples() {
-        List<Sample> unassigned = new ArrayList<>();
+        List<SchedulerEngine.AssignmentResult> assignments = schedulerEngine.assignSamples(machines);
 
-        while (!queue.isEmpty()) {
-            Sample sample = queue.poll();
+        for (SchedulerEngine.AssignmentResult res : assignments) {
+            Sample sample = res.getSample();
+            Machine machine = res.getMachine();
+            LocalDateTime now = res.getAssignedTime();
 
-            if (sample.getStatus() == Status.PROCESSING) {
-                continue;
-            }
+            HistoryEntry procEntry = new HistoryEntry(
+                    sample.getId(),
+                    now,
+                    "PROCESSING",
+                    "Assigned to machine " + machine.getId() + " (" + machine.getName() + ")"
+            );
+            history.add(procEntry);
 
-            Machine targetMachine = null;
-            for (Machine m : machines.values()) {
-                if (m.isAvailable() && m.canProcess(sample.getTestType()) && m.hasFreeSlot()) {
-                    targetMachine = m;
-                    break;
-                }
-            }
-
-            if (targetMachine != null) {
-                sample.setStatus(Status.PROCESSING);
-                LocalDateTime now = LocalDateTime.now();
-                sample.setStartTime(now);
-                sample.setAssignedMachineId(targetMachine.getId());
-                targetMachine.setCurrentLoad(targetMachine.getCurrentLoad() + 1);
-
-                HistoryEntry procEntry = new HistoryEntry(
-                        sample.getId(),
-                        now,
-                        "PROCESSING",
-                        "Assigned to machine " + targetMachine.getId() + " (" + targetMachine.getName() + ")"
-                );
-                history.add(procEntry);
-
-                if (persistenceEnabled) {
-                    sampleDAO.update(sample);
-                    machineDAO.update(targetMachine);
-                    historyDAO.save(procEntry);
-                    assignmentDAO.recordAssignment(sample.getId(), targetMachine.getId(), "PROCESSING", "Assigned to machine " + targetMachine.getId());
-                }
-            } else {
-                unassigned.add(sample);
+            if (persistenceEnabled) {
+                sampleRepository.update(sample);
+                machineRepository.update(machine);
+                historyRepository.save(procEntry);
+                assignmentRepository.recordAssignment(sample.getId(), machine.getId(), "PROCESSING", "Assigned to machine " + machine.getId());
             }
         }
-
-        queue.addAll(unassigned);
     }
 
     public synchronized void completeSample(String id) {
         Sample sample = allSamples.get(id);
         if (sample == null) {
-            throw new NoSuchElementException("Sample not found with ID: " + id);
+            throw new ResourceNotFoundException("Sample not found with ID: " + id);
         }
         if (sample.getStatus() != Status.PROCESSING) {
-            throw new IllegalStateException("Sample " + id + " cannot be completed because it is in status: " + sample.getStatus());
+            throw new InvalidStateTransitionException("Sample " + id + " cannot be completed because it is in status: " + sample.getStatus());
         }
 
         sample.setStatus(Status.COMPLETED);
@@ -309,13 +299,13 @@ public class SchedulerService {
         history.add(compEntry);
 
         if (persistenceEnabled) {
-            sampleDAO.update(sample);
+            sampleRepository.update(sample);
             if (machine != null) {
-                machineDAO.update(machine);
+                machineRepository.update(machine);
             }
-            historyDAO.save(compEntry);
+            historyRepository.save(compEntry);
             if (machineId != null) {
-                assignmentDAO.updateStatus(sample.getId(), machineId, "COMPLETED", sample.getStartTime(), now);
+                assignmentRepository.updateStatus(sample.getId(), machineId, "COMPLETED", sample.getStartTime(), now);
             }
         }
 
@@ -329,7 +319,7 @@ public class SchedulerService {
     public synchronized void markMachineDown(String machineId, String reason) {
         Machine machine = machines.get(machineId);
         if (machine == null) {
-            throw new NoSuchElementException("Machine not found with ID: " + machineId);
+            throw new ResourceNotFoundException("Machine not found with ID: " + machineId);
         }
 
         machine.setAvailable(false);
@@ -343,9 +333,9 @@ public class SchedulerService {
         history.add(downEntry);
 
         if (persistenceEnabled) {
-            machineDAO.update(machine);
-            historyDAO.save(downEntry);
-            downtimeDAO.recordDowntime(machineId, details, "SYSTEM");
+            machineRepository.update(machine);
+            historyRepository.save(downEntry);
+            downtimeRepository.recordDowntime(machineId, details, "SYSTEM");
         }
 
         assignSamples();
@@ -354,7 +344,7 @@ public class SchedulerService {
     public synchronized void markMachineUp(String machineId) {
         Machine machine = machines.get(machineId);
         if (machine == null) {
-            throw new NoSuchElementException("Machine not found with ID: " + machineId);
+            throw new ResourceNotFoundException("Machine not found with ID: " + machineId);
         }
 
         machine.setAvailable(true);
@@ -367,9 +357,9 @@ public class SchedulerService {
         history.add(upEntry);
 
         if (persistenceEnabled) {
-            machineDAO.update(machine);
-            historyDAO.save(upEntry);
-            downtimeDAO.resolveDowntime(machineId);
+            machineRepository.update(machine);
+            historyRepository.save(upEntry);
+            downtimeRepository.resolveDowntime(machineId);
         }
 
         assignSamples();
@@ -378,14 +368,13 @@ public class SchedulerService {
     public synchronized void putOnHold(String sampleId) {
         Sample sample = allSamples.get(sampleId);
         if (sample == null) {
-            throw new NoSuchElementException("Sample not found with ID: " + sampleId);
+            throw new ResourceNotFoundException("Sample not found with ID: " + sampleId);
         }
         if (sample.getStatus() == Status.COMPLETED) {
-            throw new IllegalStateException("Cannot place COMPLETED sample " + sampleId + " on hold.");
+            throw new InvalidStateTransitionException("Cannot place COMPLETED sample " + sampleId + " on hold.");
         }
 
         if (sample.getStatus() == Status.PROCESSING) {
-
             String machineId = sample.getAssignedMachineId();
             if (machineId != null) {
                 Machine m = machines.get(machineId);
@@ -395,7 +384,7 @@ public class SchedulerService {
             }
             sample.setAssignedMachineId(null);
         } else if (sample.getStatus() == Status.QUEUED || sample.getStatus() == Status.RECEIVED) {
-            queue.remove(sample);
+            schedulerEngine.remove(sample);
         }
 
         sample.setStatus(Status.ON_HOLD);
@@ -408,8 +397,8 @@ public class SchedulerService {
         history.add(holdEntry);
 
         if (persistenceEnabled) {
-            sampleDAO.update(sample);
-            historyDAO.save(holdEntry);
+            sampleRepository.update(sample);
+            historyRepository.save(holdEntry);
         }
 
         assignSamples();
@@ -418,14 +407,14 @@ public class SchedulerService {
     public synchronized void releaseFromHold(String sampleId) {
         Sample sample = allSamples.get(sampleId);
         if (sample == null) {
-            throw new NoSuchElementException("Sample not found with ID: " + sampleId);
+            throw new ResourceNotFoundException("Sample not found with ID: " + sampleId);
         }
         if (sample.getStatus() != Status.ON_HOLD) {
-            throw new IllegalStateException("Sample " + sampleId + " is not ON_HOLD (current: " + sample.getStatus() + ").");
+            throw new InvalidStateTransitionException("Sample " + sampleId + " is not ON_HOLD (current: " + sample.getStatus() + ").");
         }
 
         sample.setStatus(Status.QUEUED);
-        queue.add(sample);
+        schedulerEngine.enqueue(sample);
         HistoryEntry relEntry = new HistoryEntry(
                 sampleId,
                 LocalDateTime.now(),
@@ -435,110 +424,30 @@ public class SchedulerService {
         history.add(relEntry);
 
         if (persistenceEnabled) {
-            sampleDAO.update(sample);
-            historyDAO.save(relEntry);
+            sampleRepository.update(sample);
+            historyRepository.save(relEntry);
         }
 
         assignSamples();
     }
 
     public DelayStatus checkDelay(Sample s, LocalDateTime now) {
-        if (s == null || s.getReceivedTime() == null || now == null) {
-            return DelayStatus.ON_TIME;
-        }
-
-        LocalDateTime deadline = s.getDeadline();
-        if (deadline == null) {
-            return DelayStatus.ON_TIME;
-        }
-
-        if (!now.isBefore(deadline)) {
-            return DelayStatus.OVERDUE;
-        }
-
-        long totalSeconds = (long) s.getTargetMinutes() * 60;
-        long elapsedSeconds = Duration.between(s.getReceivedTime(), now).getSeconds();
-
-        if (elapsedSeconds >= (totalSeconds * 0.8)) {
-            return DelayStatus.APPROACHING;
-        }
-
-        return DelayStatus.ON_TIME;
+        return schedulerEngine.checkDelay(s, now);
     }
 
     public List<Sample> getDelayedSamples(LocalDateTime now) {
-        List<Sample> delayed = new ArrayList<>();
-        for (Sample s : allSamples.values()) {
-            if (s.getStatus() != Status.COMPLETED) {
-                DelayStatus delayStatus = checkDelay(s, now);
-                if (delayStatus == DelayStatus.APPROACHING || delayStatus == DelayStatus.OVERDUE) {
-                    delayed.add(s);
-                }
-            }
-        }
-        return delayed;
+        return schedulerEngine.getDelayedSamples(allSamples.values(), now);
     }
 
     public void displayQueue() {
-        System.out.println("=========================================================================================");
-        System.out.printf("                              WAITING QUEUE (%d SAMPLES)                                 %n", queue.size());
-        System.out.println("=========================================================================================");
-        if (queue.isEmpty()) {
-            System.out.println("  (No samples currently waiting in queue)");
-            System.out.println("-----------------------------------------------------------------------------------------\n");
-            return;
-        }
-
-        System.out.printf("%-5s | %-6s | %-10s | %-16s | %-10s | %-16s | %-16s%n",
-                "Pos", "ID", "Test Type", "Priority", "Target", "Received", "Deadline");
-        System.out.println("-----------------------------------------------------------------------------------------");
-
-        PriorityQueue<Sample> copyQueue = new PriorityQueue<>(queue);
-        int pos = 1;
-        while (!copyQueue.isEmpty()) {
-            Sample s = copyQueue.poll();
-            System.out.printf("#%-4d | %-6s | %-10s | %-16s | %-3d min   | %-16s | %-16s%n",
-                    pos++,
-                    s.getId(),
-                    s.getTestType(),
-                    s.getPriority().name() + " (R" + s.getPriority().getRank() + ")",
-                    s.getTargetMinutes(),
-                    s.getReceivedTime().format(TIME_FMT),
-                    s.getDeadline().format(TIME_FMT)
-            );
-        }
-        System.out.println("-----------------------------------------------------------------------------------------\n");
+        schedulerEngine.displayQueue();
     }
 
     public void displayMachineWorkload() {
-        System.out.println("=========================================================================================");
-        System.out.println("                               MACHINE WORKLOAD STATUS                                   ");
-        System.out.println("=========================================================================================");
-        System.out.printf("%-6s | %-32s | %-12s | %-10s | %-10s | %-20s%n",
-                "ID", "Name", "Workload", "Free Slots", "Status", "Supported Tests");
-        System.out.println("-----------------------------------------------------------------------------------------");
-
-        for (Machine m : machines.values()) {
-            int freeSlots = m.isAvailable() ? Math.max(0, m.getCapacity() - m.getCurrentLoad()) : 0;
-            String statusStr = m.isAvailable()
-                    ? (m.getCurrentLoad() >= m.getCapacity() ? "FULL" : "AVAILABLE")
-                    : "DOWN";
-
-            System.out.printf("%-6s | %-32s | %2d / %-2d %-4s | %-10d | %-10s | %-20s%n",
-                    m.getId(),
-                    m.getName(),
-                    m.getCurrentLoad(),
-                    m.getCapacity(),
-                    (m.getCurrentLoad() >= m.getCapacity() && m.isAvailable() ? "[BUSY]" : ""),
-                    freeSlots,
-                    statusStr,
-                    m.getSupportedTestTypes()
-            );
-        }
-        System.out.println("-----------------------------------------------------------------------------------------\n");
+        schedulerEngine.displayMachineWorkload(machines);
     }
 
-    public PriorityQueue<Sample> getQueue() { return queue; }
+    public PriorityQueue<Sample> getQueue() { return schedulerEngine.getQueue(); }
     public Map<String, Machine> getMachines() { return Collections.unmodifiableMap(machines); }
     public Map<String, Sample> getAllSamples() { return Collections.unmodifiableMap(allSamples); }
     public List<HistoryEntry> getHistory() { return Collections.unmodifiableList(history); }

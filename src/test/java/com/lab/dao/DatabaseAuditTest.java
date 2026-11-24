@@ -1,12 +1,12 @@
 package com.lab.dao;
 
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
 import com.lab.model.HistoryEntry;
 import com.lab.model.Machine;
 import com.lab.model.MachineDowntime;
-import com.lab.model.Priority;
 import com.lab.model.Sample;
 import com.lab.model.SampleAssignment;
-import com.lab.model.Status;
 import com.lab.model.User;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;

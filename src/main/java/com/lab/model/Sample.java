@@ -1,5 +1,7 @@
 package com.lab.model;
 
+import com.lab.enums.Priority;
+import com.lab.enums.Status;
 import java.time.LocalDateTime;
 
 public class Sample {
