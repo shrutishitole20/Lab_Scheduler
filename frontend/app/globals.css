@@ -1,0 +1,239 @@
+:root {
+    --primary-color: #0d6efd;
+    --sidebar-bg: #f8f9fa;
+    --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+body {
+    background-color: #f4f6f9;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1.25rem;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-weight: 600;
+}
+
+.sample-overdue {
+    background-color: #fce8e6 !important;
+    border-left: 5px solid #dc3545 !important;
+}
+
+.sample-approaching {
+    background-color: #fff9db !important;
+    border-left: 5px solid #f59f00 !important;
+}
+
+.sample-ontime {
+    border-left: 5px solid #198754 !important;
+}
+
+.sample-emergency {
+    background-color: #fff0f0 !important;
+    font-weight: 500;
+}
+
+.badge-overdue {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.badge-approaching {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.badge-ontime {
+    background-color: #198754;
+    color: #fff;
+}
+
+.machine-card {
+    transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.machine-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+}
+
+.machine-down {
+    opacity: 0.8;
+    background-color: #fdf2f2;
+    border: 1px solid #f5c2c7;
+}
+
+.table .btn-group .btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.775rem;
+}
+
+.metric-card {
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+
+.metric-card:hover {
+    transform: translateY(-3px);
+    filter: brightness(1.05);
+}
+
+.metric-card.bg-completed {
+    background: linear-gradient(135deg, #198754, #157347);
+}
+
+.metric-card.bg-pending {
+    background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+}
+
+.metric-card.bg-delayed {
+    background: linear-gradient(135deg, #dc3545, #b02a37);
+}
+
+.metric-card.bg-onhold {
+    background: linear-gradient(135deg, #6c757d, #5c636a);
+}
+
+.metric-card h3 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.metric-card span {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin-animation {
+    display: inline-block;
+    animation: spin 0.8s linear infinite;
+}
+
+.admin-sub-section {
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-backdrop-custom {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+/* =============================================
+   RESPONSIVE OVERRIDES — Mobile & Tablet
+   ============================================= */
+
+/* Reduce page padding on small screens */
+@media (max-width: 575.98px) {
+    .container-fluid.px-4 {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    /* Metric cards: shrink text on mobile */
+    .metric-card h3 {
+        font-size: 1.6rem;
+    }
+
+    .metric-card span {
+        font-size: 0.75rem;
+    }
+
+    /* Table action buttons: smaller on mobile */
+    .table .btn-group .btn {
+        padding: 0.15rem 0.35rem;
+        font-size: 0.7rem;
+    }
+
+    /* Register form: full width buttons */
+    #register-view .d-flex.gap-2 {
+        flex-direction: column;
+    }
+
+    #register-view .d-flex.gap-2 .btn {
+        width: 100%;
+    }
+
+    /* Dashboard machine cards: stack workload info */
+    .machine-card .d-flex.justify-content-between.small {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    /* Admin sub-tab pills: smaller text */
+    #admin-tabs .nav-link {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.6rem;
+        white-space: nowrap;
+    }
+
+    /* Reports: date input full width */
+    #reports-view .form-control.w-auto {
+        width: 100% !important;
+    }
+
+    /* Samples header buttons */
+    #samples-view .col-md-6.d-flex {
+        justify-content: flex-start !important;
+    }
+}
+
+/* Medium screens — tablet */
+@media (max-width: 767.98px) {
+    /* Metric cards: 2-col grid already from col-6, adjust padding */
+    .metric-card {
+        padding: 1rem;
+    }
+
+    /* Dashboard queue badge wraps nicely */
+    #dashboard-view .card-header .badge {
+        font-size: 0.72rem;
+    }
+
+    /* Samples filter buttons: wrap nicely */
+    #samples-view .col-md-6.d-flex.flex-wrap {
+        margin-bottom: 0.5rem;
+    }
+}

@@ -13,8 +13,10 @@
 *.tar.gz
 *.rar
 
-# Maven build directory
+# Maven build directories
 target/
+**/target/
+backend/target/
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
@@ -24,6 +26,12 @@ dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
+backend/.mvn/timing.properties
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Frontend dependencies and temp files
+node_modules/
+.npm/
 
 # IntelliJ IDEA
 .idea/
@@ -61,6 +69,11 @@ config.properties
 db.properties
 **/db.properties
 *.properties.local
-*.log
 
+# Frontend environment variables (never commit local secrets)
+frontend/.env.local
+**/.env.local
 
+# Next.js build output
+frontend/.next/
+**/.next/

@@ -1,75 +1,79 @@
 # 🏥 Lab Sample Scheduler
 
-A high-performance laboratory sample scheduling and SLA monitoring system built with **Java 17**, **Spring Boot 3.3.5**, **MySQL 8.0**, and a responsive **Bootstrap 5 Single-Page Web Application**.
+A high-performance laboratory sample scheduling and SLA monitoring system built with a **Spring Boot 3.3.5 REST Backend** and a decoupled **Next.js 14 (React 18) Frontend**, backed by **MySQL 8.0**.
 
 ---
 
-## 📌 Project Overview
+## 🏗️ Architecture Overview
 
-In clinical and diagnostic laboratories, medical samples (Blood, Urine, Thyroid, etc.) arrive continuously with varying urgency tiers (Emergency, High, Normal). Processing equipment has strict physical constraints: limited parallel slots, specific diagnostic capabilities, and occasional maintenance downtimes.
+The system is split into two **completely independent** applications communicating through RESTful HTTP APIs with Cross-Origin Resource Sharing (CORS) configured:
 
-The **Lab Sample Scheduler** solves this optimization challenge by implementing a deterministic **4-tier Priority Queue scheduling algorithm**. It guarantees that critical life-threatening samples are prioritized, turnaround deadlines are enforced, machine capacity is maximized without preemption, and all lifecycle events are permanently audited in a relational database.
+```text
+lab-scheduler/
+│
+├── backend/                                  # Spring Boot REST API Service (Port 8080)
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/lab/                 # Controllers, Services, DAOs, Schedulers
+│   │   │   └── resources/
+│   │   │       ├── application.properties    # Server port, datasource, CORS config
+│   │   │       ├── config.properties         # Local DB credentials (git-ignored)
+│   │   │       ├── config.properties.example # Credentials template
+│   │   │       └── .env.example              # Backend environment variable template
+│   │   └── test/                             # 9 JUnit 5 & Security test classes
+│   ├── pom.xml                               # Backend Maven POM
+│   ├── mvnw / mvnw.cmd                       # Maven wrappers
+│   └── README.md                             # Backend documentation
+│
+├── frontend/                                 # Next.js 14 (React 18) Web Application (Port 3000)
+│   ├── app/                                  # Next.js App Router (layout, page, styles)
+│   ├── components/                           # Modular UI Components (Navbar, Tabs, Modals)
+│   ├── lib/                                  # Centralized API client & date formatting
+│   ├── static-archive/                       # Archive of original static HTML/CSS/JS
+│   ├── .env.local                            # Frontend environment variables (git-ignored)
+│   ├── .env.local.example                    # Frontend environment variable template
+│   ├── package.json                          # Next.js, React, Bootstrap dependencies
+│   └── README.md                             # Frontend documentation
+│
+├── database/
+│   └── schema.sql                            # MySQL 8.0 schema DDL & seed data
+│
+├── docs/                                     # System documentation
+│   ├── DEMO_SCRIPT.md                        # Step-by-step evaluation guide
+│   ├── EXPLANATION.md                        # Design & scheduling algorithm details
+│   └── TEST_CASES.md                         # Edge cases & functional test cases
+│
+├── Lab_Scheduler_APIs.postman_collection.json# Postman REST API test collection
+├── .gitignore                                # Excludes build targets and credentials
+└── README.md                                 # Project overview & quick-start guide
+```
 
 ---
 
-## ✨ Key Features
+## 🛠️ Technologies Used
 
-- **Priority Queue Scheduling**: Orders samples by Priority Rank (Emergency > High > Normal), earlier deadline, arrival time (FIFO), and deterministic ID tie-breaking.
-- **Dynamic Machine Dispatch**: Automatically pairs queued samples with available, capable machines (`currentLoad < capacity`).
-- **Non-Preemptive Execution**: In-progress samples are never interrupted or evicted when an emergency sample arrives.
-- **SLA & Delay Tracking**:
-  - 🟢 **On Track**: Normal processing time elapsed.
-  - 🟡 **Approaching**: $\ge 80\%$ of target turnaround time elapsed.
-  - 🔴 **Overdue**: Current time exceeds deadline ($receivedTime + targetMinutes$).
-- **Machine Availability Management**: Supports marking machines DOWN for maintenance; active samples continue processing while pending samples automatically route to alternative compatible machines.
-- **Hold & Release Lifecycle**: Move stalled or flagged samples to `ON_HOLD` (removing them from queue) and release them back to `QUEUED`.
-- **Database Persistence**: Complete JDBC DAO layer using `PreparedStatement` preventing SQL injection with full audit logging in `sample_history`.
-- **Role-Based Security**: Spring Security with HTTP Basic Auth protecting REST endpoints (`ADMIN` vs `STAFF`).
-- **Live Bootstrap 5 Web UI**:
-  - Real-time dashboard with auto-refresh every 10 seconds.
-  - Visual color highlights for SLA warnings (Red for Overdue, Yellow for Approaching).
-  - One-click action buttons (Complete, Hold, Release, Machine Up/Down, History).
-  - Admin-only management console for machines, priorities, and test types.
-  - Daily performance reporting with date picker and summary metrics.
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technologies |
-| :--- | :--- |
-| **Language & Runtime** | Java 17 (LTS), OpenJDK |
-| **Backend Framework** | Spring Boot 3.3.5, Spring MVC, Spring Security |
-| **Persistence / Database** | MySQL 8.0+, JDBC, `PreparedStatement`, `mysql-connector-j` 8.4.0 |
-| **Testing** | JUnit 5 (Jupiter), Spring Security Test |
-| **Frontend UI** | HTML5, CSS3, JavaScript (Fetch API), Bootstrap 5.3, Bootstrap Icons |
-| **Build & Tooling** | Apache Maven 3.8+, Maven Wrapper (`mvnw`) |
+| Domain | Technology | Details |
+| :--- | :--- | :--- |
+| **Frontend Framework** | Next.js 14, React 18 | App Router, Client Components, Fast Refresh |
+| **Frontend UI** | Bootstrap 5.3.3 & Icons | Responsive grid, cards, modals, SLA indicators |
+| **Backend Framework** | Spring Boot 3.3.5 | Spring MVC REST, Spring Security, Validation |
+| **Language & Runtime** | Java 17 (LTS), Node.js 22 | Strict compile targets & modern JS/React |
+| **Persistence / DB** | MySQL 8.0+ | Direct JDBC with `PreparedStatement` & Connection Pool |
+| **API Architecture** | RESTful HTTP + CORS | Centralized client, JSON payloads, Basic Auth |
 
 ---
 
 ## 🗄️ Database Setup
 
-1. **Prerequisites**: Ensure MySQL 8.0+ server is running on `localhost:3306`.
-2. **Execute the Schema Script**:
-   - Open **MySQL Workbench** and connect to your instance.
-   - Go to **`File` $\rightarrow$ `Open SQL Script...`** and select:
-     ```text
-     lab-scheduler/database/schema.sql
-     ```
-   - Click the **Execute** button (⚡) or press `Ctrl + Shift + Enter`.
-   - The script creates the `lab_scheduler` database, all 7 tables with primary/foreign keys and indexes, and seeds initial data (3 priorities, 3 test types, 2 machines, 2 users, and 5 samples `S001`-`S005`).
-
----
-
-## ⚙️ Configuration (`config.properties`)
-
-The application securely loads database credentials from `src/main/resources/config.properties`, which is excluded from version control via `.gitignore`.
-
-1. Copy the example configuration template:
-   ```bash
-   cp src/main/resources/config.properties.example src/main/resources/config.properties
+1. **Prerequisites**: Ensure MySQL 8.0+ service is active on `localhost:3306`.
+2. **Execute the Database Schema**:
+   ```sql
+   source database/schema.sql;
    ```
-2. Open `src/main/resources/config.properties` and enter your MySQL root password:
+   This creates the `lab_scheduler` database, all 7 tables, constraints, foreign keys, and seeds baseline data.
+
+3. **Configure Database Credentials**:
+   In `backend/src/main/resources/config.properties`:
    ```properties
    db.url=jdbc:mysql://localhost:3306/lab_scheduler?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
    db.user=root
@@ -78,93 +82,94 @@ The application securely loads database credentials from `src/main/resources/con
 
 ---
 
-## 🚀 How to Build and Run
+## 🚀 Running the Applications Independently
 
-### 1. Run the Spring Boot Web Application (Recommended)
+Both applications run independently in separate terminals. **Start the backend first.**
+
+### 1. Start the Backend (Port 8080)
+
+Open a terminal in the `backend/` folder:
+
+**Windows:**
 ```powershell
-cd lab-scheduler
-mvn clean compile spring-boot:run
-```
-Once started, open your browser and navigate to:
-```text
-http://localhost:8080/
+cd backend
+.\mvnw.cmd spring-boot:run
 ```
 
-### 2. Run the Standalone CLI Demo
-To run the automated terminal simulation demonstrating PriorityQueue dispatching and machine allocation:
-```powershell
-mvn clean compile exec:java
+**Linux / macOS:**
+```bash
+cd backend
+./mvnw spring-boot:run
 ```
+
+Backend REST API available at → **http://localhost:8080**
 
 ---
 
-## 🔐 Default Login Accounts
+### 2. Start the Frontend (Port 3000)
 
-| Username | Password | Roles | Capabilities |
+Open a **separate terminal** in the `frontend/` folder:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Frontend application available at → **http://localhost:3000**
+
+> The frontend reads the backend URL from `.env.local`. The default value is `http://localhost:8080`.
+> To use a different backend URL, edit `frontend/.env.local`:
+> ```env
+> NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+> ```
+
+---
+
+## ⚙️ Environment Variables
+
+### Backend (`backend/`)
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | `8080` | HTTP port the Spring Boot server listens on |
+| `DB_URL` | `jdbc:mysql://localhost:3306/lab_scheduler...` | Full JDBC connection URL |
+| `DB_USER` | `root` | MySQL username |
+| `DB_PASSWORD` | _(empty)_ | MySQL password |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,...` | Comma-separated list of allowed frontend origins |
+| `ADMIN_PASSWORD` | `admin123` | In-memory admin fallback password (DB unavailable) |
+| `STAFF_PASSWORD` | `staff123` | In-memory staff fallback password (DB unavailable) |
+
+See `backend/.env.example` for a ready-to-use template.
+
+### Frontend (`frontend/`)
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` | Base URL of the Spring Boot REST API |
+
+See `frontend/.env.local.example` for a ready-to-use template.
+
+---
+
+## 🔗 Communication & CORS
+
+- **Frontend** communicates with the backend via `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8080`).
+- **Backend** CORS allows `http://localhost:3000` (and `http://127.0.0.1:3000`) by default.
+- To allow additional origins, set `CORS_ALLOWED_ORIGINS` on the backend:
+  ```bash
+  # Windows PowerShell
+  $env:CORS_ALLOWED_ORIGINS="http://localhost:3000,https://myapp.example.com"
+  .\mvnw.cmd spring-boot:run
+
+  # Linux / macOS
+  CORS_ALLOWED_ORIGINS="http://localhost:3000,https://myapp.example.com" ./mvnw spring-boot:run
+  ```
+
+---
+
+## 🔑 Default Sign-in Credentials
+
+| Role | Username | Password | Capabilities |
 | :--- | :--- | :--- | :--- |
-| **`admin`** | `admin123` | `ADMIN`, `STAFF` | Full access: View dashboard, register/complete samples, toggle machines, and manage Admin Panel (Add Machines, Priorities, Test Types). |
-| **`staff`** | `staff123` | `STAFF` | Daily laboratory operations: View dashboard, register samples, complete/hold/release samples, toggle machine status. Admin settings are hidden. |
-
----
-
-## 🧪 How to Run Tests
-
-The test suite runs deterministically with **zero real-time waiting** using fixed timestamp calculations.
-
-```powershell
-# Run all unit and integration test suites
-mvn test
-
-# Run only the 7 core scheduling policy tests
-mvn test -Dtest=SchedulerServiceTest
-```
-
----
-
-## 📁 Project Directory Structure
-
-```text
-lab-scheduler/
-├── database/
-│   └── schema.sql                          # MySQL database DDL schema and seed data
-├── docs/
-│   ├── EXPLANATION.md                      # Plain-English technical explanations
-│   ├── TEST_CASES.md                       # Detailed table of the test cases
-│   └── DEMO_SCRIPT.md                      # 5-minute step-by-step demonstration guide
-├── src/
-│   ├── main/
-│   │   ├── java/com/lab/
-│   │   │   ├── LabSchedulerApplication.java # Spring Boot application entry point
-│   │   │   ├── Main.java                    # Standalone terminal simulation runner
-│   │   │   ├── config/                      # Spring Security & App configuration (SecurityConfig)
-│   │   │   ├── controller/                  # REST Controllers (Admin, Auth, Machine, Queue, Report, Sample)
-│   │   │   ├── dto/                         # Request & Response Data Transfer Objects
-│   │   │   ├── enums/                       # Domain enumerations (Priority, Status, DelayStatus)
-│   │   │   ├── exception/                   # Custom business exceptions & GlobalExceptionHandler
-│   │   │   ├── model/                       # Domain entities (Sample, Machine, User, HistoryEntry, etc.)
-│   │   │   ├── repository/                  # Database repository layer with JDBC PreparedStatements
-│   │   │   ├── scheduler/                   # Core scheduling engine (SchedulerEngine & SampleComparator)
-│   │   │   ├── service/                     # Business services (SchedulerService, AdminService, ReportService)
-│   │   │   ├── util/                        # DBConnection (with env vars) & DateTime utilities
-│   │   │   └── dao/                         # Backward-compatible repository adapters
-│   │   └── resources/
-│   │       ├── application.properties       # Server, DataSource & Jackson settings
-│   │       ├── config.properties.example    # Configuration template
-│   │       ├── config.properties            # Active local configuration (in .gitignore)
-│   │       └── static/                      # Single-page web UI (index.html, app.js, style.css)
-│   └── test/java/com/lab/                   # Comprehensive JUnit 5 test suites (58 unit & integration tests)
-├── Lab_Scheduler_APIs.postman_collection.json # Complete Postman API testing collection
-├── pom.xml                                  # Maven project configuration
-└── .gitignore                               # Git ignore rules
-```
-
----
-
-## 📚 In-Depth Documentation
-
-Detailed operational guides are available in the `docs/` directory:
-
-1. **[docs/EXPLANATION.md](file:///c:/Users/shruti%20shitole/Downloads/lab-scheduler/lab-scheduler/docs/EXPLANATION.md)**: Explains the 4-tier queue ordering policy, why `PriorityQueue` was chosen, how machine assignment works, non-preemptive execution rules, and how delay status is tracked.
-2. **[docs/TEST_CASES.md](file:///c:/Users/shruti%20shitole/Downloads/lab-scheduler/lab-scheduler/docs/TEST_CASES.md)**: Comprehensive table of the 7 JUnit 5 test cases detailing test objectives, inputs, expected vs. actual results, and core invariant proofs.
-3. **[docs/DEMO_SCRIPT.md](file:///c:/Users/shruti%20shitole/Downloads/lab-scheduler/lab-scheduler/docs/DEMO_SCRIPT.md)**: Step-by-step minute-by-minute presentation script for a 5-minute live demonstration covering login, priority jumping, failover, and admin console.
-
+| **System Admin** | `admin` | `admin123` | Full access: Equipment, User security, Priority SLAs, Diagnostic categories |
+| **Lab Staff** | `staff` | `staff123` | Daily operations: Register samples, view queue, hold/release/complete samples |
